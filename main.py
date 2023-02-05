@@ -6,6 +6,7 @@ import numpy as np
 from mpi4py import MPI
 from pathlib import Path
 from simsopt.mhd import Vmec
+import matplotlib.pyplot as plt
 from simsopt.util import MpiPartition
 from neat.fields import Simple, Vmec as Vmec_NEAT
 from scipy.interpolate import CubicSpline as spline
@@ -37,7 +38,7 @@ for i, minor_radius in enumerate(inputs.minor_radius_array):
     pprint(f"Running minor_radius = {minor_radius:.2f}")
     vmec_input = os.path.join(OUT_DIR, f'input.na_A{minor_radius:.2f}')
     start_time = time.time()
-    if mpi.proc0_world: inputs.field_nearaxis.to_vmec(filename=vmec_input,r=minor_radius, params={"ntor":7, "mpol":7, "ns_array":[16,51,101],"niter_array":[1000,2500,5000],"ftol_array":[1e-12,1e-14,1e-14]}, ntheta=14, ntorMax=7)
+    if mpi.proc0_world: inputs.field_nearaxis.to_vmec(filename=vmec_input,r=minor_radius, params={"ntor":7, "mpol":7, "ns_array":inputs.ns_array,"niter_array":[1000,2500,5000],"ftol_array":[1e-12,1e-14,1e-14]}, ntheta=14, ntorMax=7)
     pprint(f"  Creating VMEC input took {(time.time() - start_time):.2f}s")
     vmec = Vmec(vmec_input, verbose=False)
     start_time = time.time()
@@ -67,41 +68,51 @@ for i, minor_radius in enumerate(inputs.minor_radius_array):
     orbit_simple_rpos_cylindrical_array[i]=orbit_simple_rpos_cylindrical
     pprint(f"  Particle tracer simple for minor_radius = {minor_radius:.2f} took {(time.time() - start_time):.2f}s")
 # Analyze results
-import matplotlib.pyplot as plt
 if mpi.proc0_world:
-    fig, ax = plt.subplots()
-    plt.plot(inputs.minor_radius_array,orbit_simple_rpos_cylindrical_array[:,0,0],label='SIMPLE')
-    plt.plot(inputs.minor_radius_array,orbit_gyronimo_rpos_cylindrical_array[:,0,0],label='gyronimo')
-    ax.axhline(y=orbit_nearaxis_rpos_cylindrical[0,0], color='black', lw=2, label='Near-Axis')
-    plt.xlabel('Minor Radius of the Plasma Boundary')
-    plt.ylabel('Initial R')
-    plt.legend()
-
-    fig, ax = plt.subplots()
-    plt.plot(inputs.minor_radius_array,orbit_simple_rpos_cylindrical_array[:,1,0],label='SIMPLE')
-    plt.plot(inputs.minor_radius_array,orbit_gyronimo_rpos_cylindrical_array[:,1,0],label='gyronimo')
-    ax.axhline(y=orbit_nearaxis_rpos_cylindrical[1,0], color='black', lw=2, label='Near-Axis')
-    plt.xlabel('Minor Radius of the Plasma Boundary')
-    plt.ylabel('Initial Z')
-    plt.legend()
+    # fig, ax = plt.subplots()
+    # plt.plot(inputs.minor_radius_array,orbit_simple_rpos_cylindrical_array[:,0,0],label='SIMPLE')
+    # plt.plot(inputs.minor_radius_array,orbit_gyronimo_rpos_cylindrical_array[:,0,0],label='gyronimo')
+    # ax.axhline(y=orbit_nearaxis_rpos_cylindrical[0,0], color='black', lw=2, label='Near-Axis')
+    # plt.xlabel('Minor Radius of the Plasma Boundary')
+    # plt.ylabel('Initial R')
+    # plt.legend()
 
     # fig, ax = plt.subplots()
-    # plt.plot(inputs.minor_radius_array,orbit_simple_rpos_cylindrical_array[:,2,0],label='SIMPLE')
-    # plt.plot(inputs.minor_radius_array,orbit_gyronimo_rpos_cylindrical_array[:,2,0],label='gyronimo')
-    # ax.axhline(y=orbit_nearaxis_rpos_cylindrical[2,0], color='black', lw=2, label='Near-Axis')
+    # plt.plot(inputs.minor_radius_array,orbit_simple_rpos_cylindrical_array[:,1,0],label='SIMPLE')
+    # plt.plot(inputs.minor_radius_array,orbit_gyronimo_rpos_cylindrical_array[:,1,0],label='gyronimo')
+    # ax.axhline(y=orbit_nearaxis_rpos_cylindrical[1,0], color='black', lw=2, label='Near-Axis')
     # plt.xlabel('Minor Radius of the Plasma Boundary')
-    # plt.ylabel(f'Initial $\phi$')
+    # plt.ylabel('Initial Z')
     # plt.legend()
+
+    # # fig, ax = plt.subplots()
+    # # plt.plot(inputs.minor_radius_array,orbit_simple_rpos_cylindrical_array[:,2,0],label='SIMPLE')
+    # # plt.plot(inputs.minor_radius_array,orbit_gyronimo_rpos_cylindrical_array[:,2,0],label='gyronimo')
+    # # ax.axhline(y=orbit_nearaxis_rpos_cylindrical[2,0], color='black', lw=2, label='Near-Axis')
+    # # plt.xlabel('Minor Radius of the Plasma Boundary')
+    # # plt.ylabel(f'Initial $\phi$')
+    # # plt.legend()
     
     fig, ax = plt.subplots()
     for i, minor_radius in enumerate(inputs.minor_radius_array):
         if i==0: label_legends=['SIMPLE','gyronimo']
         else: label_legends=['_nolegend_','_nolegend_']
-        plt.plot(orbit_simple_solution_array[i, :-1, 0], np.sqrt(orbit_simple_solution_array[i,:-1,1])*minor_radius, '--b', label=label_legends[0])
-        plt.plot(orbit_gyronimo_solution_array[i, :-1, 0], np.sqrt(orbit_gyronimo_solution_array[i,:-1,1])*minor_radius, ':r', label=label_legends[1])
-    plt.plot(orbit_nearaxis_solution[:-1, 0], orbit_nearaxis_solution[:-1,1], label='Near-Axis')
+        plt.plot(orbit_simple_solution_array[i, :, 0], np.sqrt(orbit_simple_solution_array[i,:,1])*minor_radius, '--b', label=label_legends[0])
+        plt.plot(orbit_gyronimo_solution_array[i, :, 0], np.sqrt(orbit_gyronimo_solution_array[i,:,1])*minor_radius, ':r', label=label_legends[1])
+    plt.plot(orbit_nearaxis_solution[:, 0], orbit_nearaxis_solution[:,1], label='Near-Axis')
     plt.xlabel('time')
     plt.ylabel(r'$r_{\mathrm{near-axis}}$')
+    plt.legend()
+
+    fig, ax = plt.subplots()
+    for i, minor_radius in enumerate(inputs.minor_radius_array):
+        if i==0: label_legends=['SIMPLE','gyronimo']
+        else: label_legends=['_nolegend_','_nolegend_']
+        plt.plot(orbit_simple_solution_array[i, :, 0], orbit_simple_solution_array[i,:,7], '--b', label=label_legends[0])
+        plt.plot(orbit_gyronimo_solution_array[i, :, 0], orbit_gyronimo_solution_array[i,:,7], ':r', label=label_legends[1])
+    plt.plot(orbit_nearaxis_solution[:, 0], orbit_nearaxis_solution[:,7], label='Near-Axis')
+    plt.xlabel('time')
+    plt.ylabel(r'$v_\parallel$')
     plt.legend()
 
     plt.show()

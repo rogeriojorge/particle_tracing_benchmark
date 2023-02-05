@@ -1,10 +1,11 @@
 import numpy as np
 from neat.fields import StellnaQS
 # Number of aspect ratio to choose
-n_minor_radius = 10 # number of minor radii for scan
-r_min = 0.05 # minimum minor radius to use in meters (maximum radius usually 1.7044/1.3=1.31)
+n_minor_radius = 1 # number of minor radii for scan
+r_min = 0.9 # minimum minor radius to use in meters (maximum radius usually 1.7044/1.3=1.31)
 rminor_factor=1.3 # ratio between max minor radius to use and ARIES_CS minor radius
 maximum_s_gyronimo = 0.95 # maximum s value to integrate in gyronimo using vmectrace
+ns_array = [16,51,0]
 # Particle and Integration Properties
 r_initial = 0.03  # meters
 theta_initial = np.pi/4  # initial Boozer poloidal angle
