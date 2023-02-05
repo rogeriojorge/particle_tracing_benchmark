@@ -1,23 +1,23 @@
 import numpy as np
 from neat.fields import StellnaQS
 # Number of aspect ratio to choose
-n_minor_radius = 6
-r_min_factor = 10
+n_minor_radius = 6 # number of minor radii for scan
+r_min = 0.02 # ratio between max and minimum minor radius to use
+rminor_factor=1.3 # ratio between max minor radius to use and ARIES_CS minor radius
+maximum_s_gyronimo = 0.95 # maximum s value to integrate in gyronimo using vmectrace
 # Particle and Integration Properties
-r_initial = 0.06  # meters
-theta_initial = 0 * np.pi / 2  # initial Boozer poloidal angle
-phi_initial = np.pi  # initial cylindrical toroidal angle
-Lambda = 0.1  # = mu * B0 / energy
+r_initial = 0.01  # meters
+theta_initial = 0.5  # initial Boozer poloidal angle
+varphi_initial = 0.1  # initial cylindrical toroidal angle
+Lambda = 0.2  # = mu * B0 / energy
 nsamples = 1000  # resolution in time
-tfinal = 4e-5  # seconds
+tfinal = 1e-5  # seconds
 # Size of equilibrium
 Rmajor_ARIES = 7.7495
 Aminor_ARIES=1.7044
 b0_ARIES=5.3267
 Psi_ARIES=51.4468
-rminor_factor=1.3 # scale the minor radius down a factor to be able to use the near-axis expansion
-r_ARIES = Aminor_ARIES/rminor_factor # np.sqrt(Psi_ARIES/b0_ARIES/(np.pi))
-r_min = r_ARIES/r_min_factor
+r_ARIES = Aminor_ARIES/rminor_factor # true r = np.sqrt(Psi_ARIES/b0_ARIES/(np.pi))
 # Near-Axis Magnetic Field
 constant_b20 = True  # use a constant B20 (mean value) or the real function
 rc = np.array([1.0e+0, 5.022414262333900481e-02, 2.464859129049914218e-03, 1.119266286864647027e-04, 4.182627242567557729e-06, 2.073762398158625685e-07])
