@@ -44,7 +44,7 @@ for i, minor_radius in enumerate(inputs.minor_radius_array):
     start_time = time.time()
     vmec.run()
     pprint(f"  VMEC ran in {(time.time() - start_time):.2f}s")
-    vmec_NEAT = Vmec_NEAT(wout_filename=vmec.output_file, maximum_s=inputs.maximum_s_gyronimo)
+    vmec_NEAT = Vmec_NEAT(wout_filename=vmec.output_file, maximum_s=inputs.maximum_s_gyronimo, Bref=inputs.b0_ARIES)
     particle.r_initial = (inputs.r_initial**2)/(minor_radius**2) # keep initializing the particle at the same location as the near-axis one
     nu_of_varphi=spline(np.append(inputs.field_nearaxis.varphi,2*np.pi/inputs.field_nearaxis.nfp), np.append(inputs.field_nearaxis.varphi-inputs.field_nearaxis.phi,0), bc_type='periodic')
     particle.phi_initial = inputs.field_nearaxis.to_RZ([[inputs.r_initial,inputs.theta_initial,inputs.varphi_initial-nu_of_varphi(inputs.varphi_initial)]])[2][0]
@@ -115,4 +115,8 @@ if mpi.proc0_world:
     plt.ylabel(r'$v_\parallel$')
     plt.legend()
 
-    plt.show()
+    pprint(f'Initial vparallel nearaxis = {orbit_nearaxis_solution[0,7]}')
+    pprint(f'Initial vparallel gyronimo = {orbit_gyronimo_solution_array[i,0,7]}')
+    pprint(f'Initial vparallel simple = {orbit_simple_solution_array[i,0,7]}')
+
+    # plt.show()
