@@ -1,14 +1,15 @@
 #!/usr/bin/env python
 import os
 import time
+import inputs
 import numpy as np
 from mpi4py import MPI
 from pathlib import Path
+from simsopt.mhd import Vmec
 from simsopt.util import MpiPartition
 from neat.fields import Simple, Vmec as Vmec_NEAT
+from scipy.interpolate import CubicSpline as spline
 from neat.tracing import ChargedParticle, ParticleOrbit
-from simsopt.mhd import Vmec
-import inputs
 mpi = MpiPartition(MPI.COMM_WORLD.Get_size())
 def pprint(*args, **kwargs):
     if mpi.proc0_world: print(*args, **kwargs)
@@ -26,14 +27,13 @@ if mpi.proc0_world:
     orbit_nearaxis_solution = orbit_nearaxis.solution
     orbit_nearaxis_rpos_cylindrical = orbit_nearaxis.rpos_cylindrical
 mpi.comm_world.Bcast(orbit_nearaxis_solution, root=0);mpi.comm_world.Bcast(orbit_nearaxis_rpos_cylindrical, root=0)
-pprint(f"Particle tracer simple for near-axis took {(time.time() - start_time):.2f}s")
+pprint(f"Particle tracer gyronimo for near-axis (stellna) took {(time.time() - start_time):.2f}s")
 orbit_gyronimo_solution_array=np.empty((inputs.n_minor_radius,inputs.nsamples+1,15));orbit_gyronimo_rpos_cylindrical_array=np.empty((inputs.n_minor_radius,3,inputs.nsamples+1))
 orbit_simple_solution_array=np.empty((inputs.n_minor_radius,inputs.nsamples+1,15));orbit_simple_rpos_cylindrical_array=np.empty((inputs.n_minor_radius,3,inputs.nsamples+1))
 orbit_gyronimo_solution=np.empty((inputs.nsamples+1,15));orbit_gyronimo_rpos_cylindrical=np.empty((3,inputs.nsamples+1))
 orbit_simple_solution=np.empty((inputs.nsamples+1,15));orbit_simple_rpos_cylindrical=np.empty((3,inputs.nsamples+1))
 # Calculate SIMPLE and Gyronimo orbits
-minor_radius_array = np.linspace(inputs.r_min,inputs.r_ARIES,inputs.n_minor_radius)
-for i, minor_radius in enumerate(minor_radius_array):
+for i, minor_radius in enumerate(inputs.minor_radius_array):
     pprint(f"Running minor_radius = {minor_radius:.2f}")
     vmec_input = os.path.join(OUT_DIR, f'input.na_A{minor_radius:.2f}')
     start_time = time.time()
@@ -45,9 +45,9 @@ for i, minor_radius in enumerate(minor_radius_array):
     pprint(f"  VMEC ran in {(time.time() - start_time):.2f}s")
     vmec_NEAT = Vmec_NEAT(wout_filename=vmec.output_file, maximum_s=inputs.maximum_s_gyronimo)
     particle.r_initial = (inputs.r_initial**2)/(minor_radius**2) # keep initializing the particle at the same location as the near-axis one
-    from scipy.interpolate import CubicSpline as spline
     nu_of_varphi=spline(np.append(inputs.field_nearaxis.varphi,2*np.pi/inputs.field_nearaxis.nfp), np.append(inputs.field_nearaxis.varphi-inputs.field_nearaxis.phi,0), bc_type='periodic')
     particle.phi_initial = inputs.field_nearaxis.to_RZ([[inputs.r_initial,inputs.theta_initial,inputs.varphi_initial-nu_of_varphi(inputs.varphi_initial)]])[2][0]
+    particle.theta_initial = np.pi-inputs.theta_initial
     if mpi.proc0_world:
         orbit_gyronimo = ParticleOrbit(particle, vmec_NEAT, nsamples=inputs.nsamples, tfinal=inputs.tfinal)
         orbit_gyronimo_solution = orbit_gyronimo.solution
@@ -70,36 +70,36 @@ for i, minor_radius in enumerate(minor_radius_array):
 import matplotlib.pyplot as plt
 if mpi.proc0_world:
     fig, ax = plt.subplots()
-    plt.plot(minor_radius_array,orbit_simple_rpos_cylindrical_array[:,0,0],label='SIMPLE')
-    plt.plot(minor_radius_array,orbit_gyronimo_rpos_cylindrical_array[:,0,0],label='gyronimo')
+    plt.plot(inputs.minor_radius_array,orbit_simple_rpos_cylindrical_array[:,0,0],label='SIMPLE')
+    plt.plot(inputs.minor_radius_array,orbit_gyronimo_rpos_cylindrical_array[:,0,0],label='gyronimo')
     ax.axhline(y=orbit_nearaxis_rpos_cylindrical[0,0], color='black', lw=2, label='Near-Axis')
     plt.xlabel('Minor Radius of the Plasma Boundary')
     plt.ylabel('Initial R')
     plt.legend()
 
     fig, ax = plt.subplots()
-    plt.plot(minor_radius_array,orbit_simple_rpos_cylindrical_array[:,1,0],label='SIMPLE')
-    plt.plot(minor_radius_array,orbit_gyronimo_rpos_cylindrical_array[:,1,0],label='gyronimo')
+    plt.plot(inputs.minor_radius_array,orbit_simple_rpos_cylindrical_array[:,1,0],label='SIMPLE')
+    plt.plot(inputs.minor_radius_array,orbit_gyronimo_rpos_cylindrical_array[:,1,0],label='gyronimo')
     ax.axhline(y=orbit_nearaxis_rpos_cylindrical[1,0], color='black', lw=2, label='Near-Axis')
     plt.xlabel('Minor Radius of the Plasma Boundary')
     plt.ylabel('Initial Z')
     plt.legend()
 
-    fig, ax = plt.subplots()
-    plt.plot(minor_radius_array,orbit_simple_rpos_cylindrical_array[:,2,0],label='SIMPLE')
-    plt.plot(minor_radius_array,orbit_gyronimo_rpos_cylindrical_array[:,2,0],label='gyronimo')
-    ax.axhline(y=orbit_nearaxis_rpos_cylindrical[2,0], color='black', lw=2, label='Near-Axis')
-    plt.xlabel('Minor Radius of the Plasma Boundary')
-    plt.ylabel(f'Initial $\phi$')
-    plt.legend()
+    # fig, ax = plt.subplots()
+    # plt.plot(inputs.minor_radius_array,orbit_simple_rpos_cylindrical_array[:,2,0],label='SIMPLE')
+    # plt.plot(inputs.minor_radius_array,orbit_gyronimo_rpos_cylindrical_array[:,2,0],label='gyronimo')
+    # ax.axhline(y=orbit_nearaxis_rpos_cylindrical[2,0], color='black', lw=2, label='Near-Axis')
+    # plt.xlabel('Minor Radius of the Plasma Boundary')
+    # plt.ylabel(f'Initial $\phi$')
+    # plt.legend()
     
     fig, ax = plt.subplots()
-    for i, minor_radius in enumerate(minor_radius_array):
+    for i, minor_radius in enumerate(inputs.minor_radius_array):
         if i==0: label_legends=['SIMPLE','gyronimo']
         else: label_legends=['_nolegend_','_nolegend_']
-        plt.plot(orbit_simple_solution_array[i, :, 0], np.sqrt(orbit_simple_solution_array[i,:,1])*minor_radius, '--b', label=label_legends[0])
-        plt.plot(orbit_gyronimo_solution_array[i, :, 0], np.sqrt(orbit_gyronimo_solution_array[i,:,1])*minor_radius, ':r', label=label_legends[1])
-    plt.plot(orbit_nearaxis_solution[:, 0], orbit_nearaxis_solution[:,1], label='Near-Axis')
+        plt.plot(orbit_simple_solution_array[i, :-1, 0], np.sqrt(orbit_simple_solution_array[i,:-1,1])*minor_radius, '--b', label=label_legends[0])
+        plt.plot(orbit_gyronimo_solution_array[i, :-1, 0], np.sqrt(orbit_gyronimo_solution_array[i,:-1,1])*minor_radius, ':r', label=label_legends[1])
+    plt.plot(orbit_nearaxis_solution[:-1, 0], orbit_nearaxis_solution[:-1,1], label='Near-Axis')
     plt.xlabel('time')
     plt.ylabel(r'$r_{\mathrm{near-axis}}$')
     plt.legend()
