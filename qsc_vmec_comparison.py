@@ -60,7 +60,7 @@ for i, minor_radius in enumerate(inputs.minor_radius_array):
     pprint(f"Running minor_radius = {minor_radius:.3f}")
     vmec_input = os.path.join(OUT_DIR, f'input.na_A{minor_radius:.1}')
     start_time = time.time()
-    if mpi.proc0_world: field_nearaxis.to_vmec(filename=vmec_input,r=minor_radius, params={"ntor":7, "mpol":7, "ns_array":inputs.ns_array,"niter_array":[5000,5000,7000],"ftol_array":[1e-12,1e-14,1e-14]}, ntheta=14, ntorMax=7)
+    if mpi.proc0_world: field_nearaxis.to_vmec(filename=vmec_input,r=minor_radius, params={"ntor":7, "mpol":7, "ns_array":inputs.ns_array,"niter_array":[5000,5000,7000],"ftol_array":inputs.ftol_array}, ntheta=14, ntorMax=7)
     pprint(f"  Creating VMEC input took {(time.time() - start_time):.2f}s")
     vmec = Vmec(vmec_input, verbose=False)
     start_time = time.time()
