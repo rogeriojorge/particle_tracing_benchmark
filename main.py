@@ -28,7 +28,7 @@ mpi.comm_world.bcast(particle_phi_initial, root=0)
 #######################################################
 pprint("Starting patricle_tracing benchmark")
 # Initialize folders and variables
-particle = ChargedParticle(r_initial=inputs.r_initial, theta_initial=inputs.theta_initial, phi_initial=inputs.varphi_initial, Lambda=inputs.Lambda)
+particle = ChargedParticle(r_initial=inputs.r_initial, theta_initial=inputs.theta_initial, phi_initial=inputs.varphi_initial, Lambda=inputs.Lambda, charge=inputs.charge)
 OUT_DIR=os.path.join(Path(__file__).parent.resolve(),f'out_constantb20{inputs.constant_b20}_r{inputs.r_initial:.2f}_theta{inputs.theta_initial:.2f}_phi{inputs.varphi_initial:.2f}_lambda{inputs.Lambda:.2f}')
 os.makedirs(OUT_DIR, exist_ok=True)
 if mpi.proc0_world: shutil.copyfile(os.path.join(Path(__file__).parent.resolve(),'inputs.py'), os.path.join(OUT_DIR,'copy_inputs.py'))
@@ -75,10 +75,10 @@ for i, minor_radius in enumerate(inputs.minor_radius_array):
         orbit_gyronimo = ParticleOrbit(particle, vmec_NEAT, nsamples=inputs.nsamples, tfinal=inputs.tfinal, add_zeros=True)
         orbit_gyronimo_solution = orbit_gyronimo.solution
         orbit_gyronimo_rpos_cylindrical = orbit_gyronimo.rpos_cylindrical
-        orbit_gyronimo.plot_orbit_contourB(show=False, savefig=os.path.join(OUT_DIR,f'plot_orbit_contourB_gyronimo_aspect{vmec.aspect():.2f}.png'))
-        orbit_gyronimo.plot(show=False, savefig=os.path.join(OUT_DIR,f'plot_gyronimo_aspect{vmec.aspect():.2f}.png'))
-        orbit_gyronimo.plot_orbit(show=False, savefig=os.path.join(OUT_DIR,f'plot_orbit_gyronimo_aspect{vmec.aspect():.2f}.png'))
-        orbit_gyronimo.plot_orbit_3d(show=False, savefig=os.path.join(OUT_DIR,f'plot_orbit_3d_gyronimo_aspect{vmec.aspect():.2f}.png'))
+        orbit_gyronimo.plot_orbit_contourB(show=False, savefig=os.path.join(OUT_DIR,f'plot_orbit_contourB_gyronimo_aspect{vmec.aspect():.2f}.pdf'))
+        orbit_gyronimo.plot(show=False, savefig=os.path.join(OUT_DIR,f'plot_gyronimo_aspect{vmec.aspect():.2f}.pdf'))
+        orbit_gyronimo.plot_orbit(show=False, savefig=os.path.join(OUT_DIR,f'plot_orbit_gyronimo_aspect{vmec.aspect():.2f}.pdf'))
+        orbit_gyronimo.plot_orbit_3d(show=False, savefig=os.path.join(OUT_DIR,f'plot_orbit_3d_gyronimo_aspect{vmec.aspect():.2f}.pdf'))
         plt.close()
     mpi.comm_world.Bcast(orbit_gyronimo_solution, root=0);mpi.comm_world.Bcast(orbit_gyronimo_rpos_cylindrical, root=0)
     orbit_gyronimo_solution_array[i]=orbit_gyronimo_solution
@@ -91,10 +91,10 @@ for i, minor_radius in enumerate(inputs.minor_radius_array):
         orbit_simple = ParticleOrbit(particle, field_simple, nsamples=inputs.nsamples, tfinal=inputs.tfinal, add_zeros=True)
         orbit_simple_solution = orbit_simple.solution
         orbit_simple_rpos_cylindrical = orbit_simple.rpos_cylindrical
-        orbit_simple.plot_orbit_contourB(show=False, savefig=os.path.join(OUT_DIR,f'plot_orbit_contourB_simple_aspect{vmec.aspect():.2f}.png'))
-        orbit_simple.plot(show=False, savefig=os.path.join(OUT_DIR,f'plot_simple_aspect{vmec.aspect():.2f}.png'))
-        orbit_simple.plot_orbit(show=False, savefig=os.path.join(OUT_DIR,f'plot_orbit_simple_aspect{vmec.aspect():.2f}.png'))
-        orbit_simple.plot_orbit_3d(show=False, savefig=os.path.join(OUT_DIR,f'plot_orbit_3d_simple_aspect{vmec.aspect():.2f}.png'))
+        orbit_simple.plot_orbit_contourB(show=False, savefig=os.path.join(OUT_DIR,f'plot_orbit_contourB_simple_aspect{vmec.aspect():.2f}.pdf'))
+        orbit_simple.plot(show=False, savefig=os.path.join(OUT_DIR,f'plot_simple_aspect{vmec.aspect():.2f}.pdf'))
+        orbit_simple.plot_orbit(show=False, savefig=os.path.join(OUT_DIR,f'plot_orbit_simple_aspect{vmec.aspect():.2f}.pdf'))
+        orbit_simple.plot_orbit_3d(show=False, savefig=os.path.join(OUT_DIR,f'plot_orbit_3d_simple_aspect{vmec.aspect():.2f}.pdf'))
         plt.close()
     mpi.comm_world.Bcast(orbit_simple_solution, root=0);mpi.comm_world.Bcast(orbit_simple_rpos_cylindrical, root=0)
     orbit_simple_solution_array[i]=orbit_simple_solution

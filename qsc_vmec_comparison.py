@@ -15,12 +15,20 @@ from scipy.interpolate import CubicSpline as spline
 from neat.tracing import ChargedParticle, ParticleOrbit
 #############################################
 mpi = MpiPartition(MPI.COMM_WORLD.Get_size())
-if mpi.proc0_world: from mayavi import mlab
+mayavi_loaded = False
+if mpi.proc0_world:
+    try:
+        from mayavi import mlab
+        mayavi_loaded = True
+    except Exception as e:
+        print(e)
+mpi.comm_world.bcast(mayavi_loaded, root=0)
 def pprint(*args, **kwargs):
     if mpi.proc0_world: print(*args, **kwargs)
 phi0 = inputs.varphi_initial
 R0axis = 0
 Z0axis = 0
+# iota0 = 0
 RZPhi_initial = np.empty((3,))
 if mpi.proc0_world:
     from neat.fields import StellnaQS
@@ -31,6 +39,8 @@ if mpi.proc0_world:
     RZPhi_initial = np.ravel(field_nearaxis.to_RZ([[inputs.r_initial,inputs.theta_initial,phi0]]))
     R0axis = field_nearaxis.R0_func(phi0)
     Z0axis = field_nearaxis.Z0_func(phi0)
+    # iota0 = field_nearaxis.iota
+# mpi.comm_world.bcast(iota0, root=0)
 mpi.comm_world.bcast(phi0, root=0)
 mpi.comm_world.bcast(R0axis, root=0)
 mpi.comm_world.bcast(Z0axis, root=0)
@@ -52,11 +62,12 @@ minor_radius=inputs.minor_radius_array[0]
 vmec_input = os.path.join(OUT_DIR, f'input.na_A{minor_radius:.2f}')
 pprint('  Creating VMEC input')
 if mpi.proc0_world: field_nearaxis.to_vmec(filename=vmec_input,r=minor_radius, params={"ntor":7, "mpol":7, "ns_array":inputs.ns_array,"niter_array":[1000,3000,7000],"ftol_array":inputs.ftol_array}, ntheta=14, ntorMax=7)
-vmec = Vmec(vmec_input, verbose=False)
-pprint('  Running VMEC')
-vmec.run()
-particle = ChargedParticle(r_initial=inputs.r_ARIES/1.5, theta_initial=inputs.theta_initial, phi_initial=inputs.varphi_initial, Lambda=0.97)
-if mpi.proc0_world:
+if mayavi_loaded:
+    vmec = Vmec(vmec_input, verbose=False)
+    pprint('  Running VMEC')
+    vmec.run()
+if mpi.proc0_world and mayavi_loaded:
+    particle = ChargedParticle(r_initial=inputs.r_ARIES/1.5, theta_initial=inputs.theta_initial, phi_initial=inputs.varphi_initial, Lambda=0.97)
     fig = mlab.figure(bgcolor=(1,1,1), size=(1100,800))
     pprint('  Running near-axis orbit')
     orbit_nearaxis = ParticleOrbit(particle, field_nearaxis, nsamples=inputs.nsamples, tfinal=5e-5, constant_b20=inputs.constant_b20)
@@ -118,7 +129,9 @@ raxis_r0axis_relerror_array = []
 zaxis_z0axis_relerror_array = []
 R_VMEC_r_nearaxis_relerror_array = []
 Z_VMEC_z_nearaxis_relerror_array = []
+iota_relerror_array = []
 aspect_ratio_array = []
+iota_array = []
 fig, axs = plt.subplots(numRows, numCols)
 axs = axs.ravel()
 for i, minor_radius in enumerate(inputs.minor_radius_array):
@@ -132,6 +145,8 @@ for i, minor_radius in enumerate(inputs.minor_radius_array):
     vmec.run()
     aspect_ratio = vmec.aspect()
     aspect_ratio_array.append(aspect_ratio)
+    iota = vmec.wout.iotaf[1]
+    iota_array.append(iota)
     pprint(f"  VMEC ran in {(time.time() - start_time):.2f}s")
     theta = np.linspace(0,2*np.pi,num=ntheta)
     iradii = np.linspace(0,np.max(inputs.ns_array)-1,num=nradius).round()
@@ -190,6 +205,12 @@ for i, minor_radius in enumerate(inputs.minor_radius_array):
     pprint(f'  Rel error Raxis and R0axis is {raxis_r0axis_relerror:.2}')
     pprint(f'  Rel error Zaxis and Z0axis is {zaxis_z0axis_relerror:.2}')
 
+    # iota_relerror = np.abs((np.abs(iota)-np.abs(iota0))/iota)
+    # iota_relerror_array.append(iota_relerror)
+    # pprint(f'  iota is {iota:.2}')
+    # pprint(f'  iota0 is {iota0:.2}')
+    # pprint(f'  Rel error iota and iota is {iota_relerror:.2}')
+
     if mpi.proc0_world:
         # plt.subplot(numRows,numCols,plotNum)
         # plotNum += 1
@@ -211,7 +232,7 @@ if mpi.proc0_world:
     fig.legend(handles, labels, loc='lower right', fontsize=8)
     plt.gca().set_aspect('equal',adjustable='box')
     plt.tight_layout()
-    plt.savefig('qsc_vmec_location.png')
+    plt.savefig('qsc_vmec_location.pdf')
     # plt.show()
 
 if mpi.proc0_world:
@@ -221,13 +242,14 @@ if mpi.proc0_world:
     plt.plot(aspect_ratio_array, zaxis_z0axis_relerror_array, label=r'$(Zaxis_{VMEC}-Zaxis_{near-axis})/Zaxis_{VMEC}$')
     plt.plot(aspect_ratio_array, R_VMEC_r_nearaxis_relerror_array, label=r'$(R_{VMEC} - R_{near-axis})/R_{VMEC}$')
     plt.plot(aspect_ratio_array, Z_VMEC_z_nearaxis_relerror_array, label=r'$(Z_{VMEC} - Z_{near-axis})/Z_{VMEC}$')
+    # plt.plot(aspect_ratio_array, iota_relerror_array, label=r'$(\iota_{VMEC}-\iota_{near-axis})/\iota_{VMEC}$')
     plt.yscale('log')
     plt.xscale('log')
     plt.xlabel('Aspect Ratio of the Plasma Boundary')
     plt.ylabel('Relative Error in Location')
     plt.legend()
     plt.tight_layout()
-    plt.savefig('qsc_vmec_relerrors.png')
+    plt.savefig('qsc_vmec_relerrors.pdf')
     # plt.show()
 
     for objective_file in glob.glob(os.path.join(OUT_DIR,f"input.*")): os.remove(objective_file)
