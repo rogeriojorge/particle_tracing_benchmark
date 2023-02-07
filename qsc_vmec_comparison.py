@@ -15,7 +15,7 @@ from scipy.interpolate import CubicSpline as spline
 from neat.tracing import ChargedParticle, ParticleOrbit
 #############################################
 mpi = MpiPartition(MPI.COMM_WORLD.Get_size())
-mayavi_loaded = False
+mayavi_loaded = True
 if mpi.proc0_world:
     try:
         from mayavi import mlab
@@ -68,7 +68,7 @@ if plot3D:
     minor_radius_plot=inputs.minor_radius_array[0]
     vmec_input_plot = os.path.join(OUT_DIR, f'input.na_A{minor_radius_plot:.2f}')
     pprint('  Creating VMEC input')
-    if mpi.proc0_world: field_nearaxis.to_vmec(filename=vmec_input_plot,r=minor_radius_plot, params={"ntor":7, "mpol":7, "ns_array":inputs.ns_array,"niter_array":[1000,3000,7000],"ftol_array":inputs.ftol_array}, ntheta=14, ntorMax=7)
+    if mpi.proc0_world: field_nearaxis.to_vmec(filename=vmec_input_plot,r=minor_radius_plot, params={"ntor":7, "mpol":7, "ns_array":inputs.ns_array,"niter_array":inputs.niter_array,"ftol_array":inputs.ftol_array}, ntheta=14, ntorMax=7)
     mpi.comm_world.barrier()
     if mayavi_loaded:
         vmec = Vmec(vmec_input_plot, verbose=False)
@@ -91,7 +91,7 @@ if plot3D:
         orbit_rpos_cartesian = orbit_gyronimo.rpos_cartesian
         mlab.plot3d(orbit_rpos_cartesian[0], orbit_rpos_cartesian[1], orbit_rpos_cartesian[2], tube_radius=0.025, color=(0.1, 0.6, 0.1))
         pprint('  Running SIMPLE orbit')
-        particle.theta_initial = inputs.theta_initial
+        # particle.theta_initial = inputs.theta_initial
         field_simple = Simple(wout_filename=vmec.output_file, B_scale=1, Aminor_scale=1, multharm=3,ns_s=3,ns_tp=3)
         orbit_simple = ParticleOrbit(particle, field_simple, nsamples=inputs.nsamples, tfinal=inputs.tfinal)
         orbit_rpos_cartesian = orbit_simple.rpos_cartesian
@@ -115,7 +115,7 @@ if plot3D:
             # Out.scene.renderer.use_depth_peeling = True
             # Out.scene.renderer.maximum_number_of_peels = 8
             mlab.view(azimuth=30, elevation=70, focalpoint=(-0.15,0,0), figure=fig)
-        cb = mlab.colorbar(orientation='vertical', title='|B| [T]', nb_labels=7)
+        cb = mlab.colorbar(orientation='horizontal', title='|B| [T]', nb_labels=7)
         cb.scalar_bar.unconstrained_font_size = True
         cb.label_text_property.font_family = 'times'
         cb.label_text_property.bold = 0
@@ -150,7 +150,7 @@ for i, minor_radius in enumerate(inputs.minor_radius_array):
     pprint(f"Running minor_radius = {minor_radius:.3f}")
     vmec_input = os.path.join(OUT_DIR, f'input.na_A{minor_radius:.2f}')
     start_time = time.time()
-    if mpi.proc0_world: field_nearaxis.to_vmec(filename=vmec_input,r=minor_radius, params={"ntor":7, "mpol":7, "ns_array":inputs.ns_array,"niter_array":[1000,3000,7000],"ftol_array":inputs.ftol_array}, ntheta=14, ntorMax=7)
+    if mpi.proc0_world: field_nearaxis.to_vmec(filename=vmec_input,r=minor_radius, params={"ntor":7, "mpol":7, "ns_array":inputs.ns_array,"niter_array":inputs.niter_array,"ftol_array":inputs.ftol_array}, ntheta=14, ntorMax=7)
     pprint(f"  Creating VMEC input took {(time.time() - start_time):.2f}s")
     vmec = Vmec(vmec_input, verbose=False)
     start_time = time.time()

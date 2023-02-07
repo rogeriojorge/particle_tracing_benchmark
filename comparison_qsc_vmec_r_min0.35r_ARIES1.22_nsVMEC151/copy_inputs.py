@@ -14,7 +14,7 @@ theta_initial = 0.5  # initial Boozer poloidal angle
 varphi_initial = 0.01  # initial cylindrical toroidal angle
 Lambda = 0.3  # = mu * B0 / energy
 nsamples = 3000  # resolution in time
-tfinal = 3e-5 # 8e-6  # seconds
+tfinal = 8e-6 # 3e-5 # 8e-6  # seconds
 charge = 2 # in units of the proton mass
 # Size of equilibrium
 Rmajor_ARIES = 7.7495
