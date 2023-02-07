@@ -72,7 +72,7 @@ for i, minor_radius in enumerate(inputs.minor_radius_array):
     particle.theta_initial = np.pi-inputs.theta_initial
     # particle.vpp_sign = -1
     if mpi.proc0_world:
-        orbit_gyronimo = ParticleOrbit(particle, vmec_NEAT, nsamples=inputs.nsamples, tfinal=inputs.tfinal)
+        orbit_gyronimo = ParticleOrbit(particle, vmec_NEAT, nsamples=inputs.nsamples, tfinal=inputs.tfinal, add_zeros=True)
         orbit_gyronimo_solution = orbit_gyronimo.solution
         orbit_gyronimo_rpos_cylindrical = orbit_gyronimo.rpos_cylindrical
         orbit_gyronimo.plot_orbit_contourB(show=False, savefig=os.path.join(OUT_DIR,f'plot_orbit_contourB_gyronimo_aspect{vmec.aspect():.2f}.png'))
@@ -88,7 +88,7 @@ for i, minor_radius in enumerate(inputs.minor_radius_array):
     start_time = time.time()
     # particle.vpp_sign = 1
     if mpi.proc0_world:
-        orbit_simple = ParticleOrbit(particle, field_simple, nsamples=inputs.nsamples, tfinal=inputs.tfinal)
+        orbit_simple = ParticleOrbit(particle, field_simple, nsamples=inputs.nsamples, tfinal=inputs.tfinal, add_zeros=True)
         orbit_simple_solution = orbit_simple.solution
         orbit_simple_rpos_cylindrical = orbit_simple.rpos_cylindrical
         orbit_simple.plot_orbit_contourB(show=False, savefig=os.path.join(OUT_DIR,f'plot_orbit_contourB_simple_aspect{vmec.aspect():.2f}.png'))
