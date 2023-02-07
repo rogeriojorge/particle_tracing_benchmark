@@ -19,16 +19,21 @@ mayavi_loaded = False
 if mpi.proc0_world:
     try:
         from mayavi import mlab
-        mayavi_loaded = True
     except Exception as e:
         print(e)
+        mayavi_loaded = False
+mpi.comm_world.barrier()
 mpi.comm_world.bcast(mayavi_loaded, root=0)
 def pprint(*args, **kwargs):
     if mpi.proc0_world: print(*args, **kwargs)
+#############################################
+plot3D=True
+min_surface_radius=0.1
+#############################################
 phi0 = inputs.varphi_initial
 R0axis = 0
 Z0axis = 0
-# iota0 = 0
+iota0 = np.empty((3,))
 RZPhi_initial = np.empty((3,))
 if mpi.proc0_world:
     from neat.fields import StellnaQS
@@ -39,8 +44,9 @@ if mpi.proc0_world:
     RZPhi_initial = np.ravel(field_nearaxis.to_RZ([[inputs.r_initial,inputs.theta_initial,phi0]]))
     R0axis = field_nearaxis.R0_func(phi0)
     Z0axis = field_nearaxis.Z0_func(phi0)
-    # iota0 = field_nearaxis.iota
-# mpi.comm_world.bcast(iota0, root=0)
+    iota0 = np.array([field_nearaxis.iota,0,0])
+mpi.comm_world.Bcast(iota0, root=0)
+iota0=iota0[0]
 mpi.comm_world.bcast(phi0, root=0)
 mpi.comm_world.bcast(R0axis, root=0)
 mpi.comm_world.bcast(Z0axis, root=0)
@@ -57,66 +63,70 @@ inputs.minor_radius_array = inputs.minor_radius_array[::-1]
 #############################################
 # Show orbit of particle layered VMEC
 #############################################
-pprint('3D rendering particle orbits')
-minor_radius=inputs.minor_radius_array[0]
-vmec_input = os.path.join(OUT_DIR, f'input.na_A{minor_radius:.2f}')
-pprint('  Creating VMEC input')
-if mpi.proc0_world: field_nearaxis.to_vmec(filename=vmec_input,r=minor_radius, params={"ntor":7, "mpol":7, "ns_array":inputs.ns_array,"niter_array":[1000,3000,7000],"ftol_array":inputs.ftol_array}, ntheta=14, ntorMax=7)
-if mayavi_loaded:
-    vmec = Vmec(vmec_input, verbose=False)
-    pprint('  Running VMEC')
-    vmec.run()
-if mpi.proc0_world and mayavi_loaded:
-    particle = ChargedParticle(r_initial=inputs.r_ARIES/1.5, theta_initial=inputs.theta_initial, phi_initial=inputs.varphi_initial, Lambda=0.97)
-    fig = mlab.figure(bgcolor=(1,1,1), size=(1100,800))
-    pprint('  Running near-axis orbit')
-    orbit_nearaxis = ParticleOrbit(particle, field_nearaxis, nsamples=inputs.nsamples, tfinal=5e-5, constant_b20=inputs.constant_b20)
-    orbit_rpos_cartesian = orbit_nearaxis.rpos_cartesian
-    mlab.plot3d(orbit_rpos_cartesian[0], orbit_rpos_cartesian[1], orbit_rpos_cartesian[2], tube_radius=0.025, color=(0.6, 0.1, 0.1))
-    pprint('  Readjusting particle position')
-    particle.r_initial = ((inputs.r_ARIES/1.5)**2)/(minor_radius**2) # keep initializing the particle at the same location as the near-axis one
-    particle.phi_initial = RZPhi_initial[2]
-    particle.theta_initial = np.pi-inputs.theta_initial
-    pprint('  Running gyronimo orbit')
-    vmec_NEAT = Vmec_NEAT(wout_filename=vmec.output_file, maximum_s=inputs.maximum_s_particle)
-    orbit_gyronimo = ParticleOrbit(particle, vmec_NEAT, nsamples=inputs.nsamples, tfinal=5e-5)
-    orbit_rpos_cartesian = orbit_gyronimo.rpos_cartesian
-    mlab.plot3d(orbit_rpos_cartesian[0], orbit_rpos_cartesian[1], orbit_rpos_cartesian[2], tube_radius=0.025, color=(0.1, 0.6, 0.1))
-    pprint('  Running SIMPLE orbit')
-    field_simple = Simple(wout_filename=vmec.output_file, B_scale=1, Aminor_scale=1, multharm=3,ns_s=3,ns_tp=3)
-    orbit_simple = ParticleOrbit(particle, field_simple, nsamples=inputs.nsamples, tfinal=5e-5)
-    orbit_rpos_cartesian = orbit_simple.rpos_cartesian
-    mlab.plot3d(orbit_rpos_cartesian[0], orbit_rpos_cartesian[1], orbit_rpos_cartesian[2], tube_radius=0.025, color=(0.1, 0.1, 0.6))
-    pprint('  Plotting surfaces')
-    opacity_array = np.sqrt(np.linspace(0.99,1.0,inputs.n_minor_radius))
-    for i, minor_radius in enumerate(inputs.minor_radius_array):
-        nphi_plot = 80
-        ntheta_plot = 30
-        if i==len(inputs.minor_radius_array)-1: phimin=0
-        else: phimin=np.pi/2
-        phimax=2*np.pi
-        x_2D_plot, y_2D_plot, z_2D_plot, R_2D_plot = field_nearaxis.get_boundary(r=minor_radius, ntheta=ntheta_plot, nphi=nphi_plot, ntheta_fourier=14, mpol=7, ntor=7, phimin=phimin, phimax=phimax)
-        theta1D = np.linspace(0, 2 * np.pi, ntheta_plot)
-        phi1D = np.linspace(0, 2 * np.pi, nphi_plot)
-        phi2D, theta2D = np.meshgrid(phi1D, theta1D)
-        Bmag = field_nearaxis.B_mag(r=minor_radius, theta=theta2D, phi=phi2D)
-        Out=mlab.mesh(x_2D_plot, y_2D_plot, z_2D_plot, scalars=Bmag, colormap='blue-red', opacity=opacity_array[i])
-        Out.actor.property.lighting = False
-        # Out.scene.renderer.use_depth_peeling = True
-        Out.scene.renderer.maximum_number_of_peels = 8
-        mlab.view(azimuth=30, elevation=70, focalpoint=(-0.15,0,0), figure=fig)
-    cb = mlab.colorbar(orientation='vertical', title='|B| [T]', nb_labels=7)
-    cb.scalar_bar.unconstrained_font_size = True
-    cb.label_text_property.font_family = 'times'
-    cb.label_text_property.bold = 0
-    cb.label_text_property.font_size=20
-    cb.label_text_property.color=(0,0,0)
-    cb.title_text_property.font_family = 'times'
-    cb.title_text_property.font_size=24
-    cb.title_text_property.color=(0,0,0)
-    cb.title_text_property.bold = 1
-    mlab.savefig(filename=os.path.join(OUT_DIR,'3D_stells.png'), figure=fig)
-    # mlab.show()
+if plot3D:
+    pprint('3D rendering particle orbits')
+    minor_radius_plot=inputs.minor_radius_array[0]
+    vmec_input_plot = os.path.join(OUT_DIR, f'input.na_A{minor_radius_plot:.2f}')
+    pprint('  Creating VMEC input')
+    if mpi.proc0_world: field_nearaxis.to_vmec(filename=vmec_input_plot,r=minor_radius_plot, params={"ntor":7, "mpol":7, "ns_array":inputs.ns_array,"niter_array":[1000,3000,7000],"ftol_array":inputs.ftol_array}, ntheta=14, ntorMax=7)
+    mpi.comm_world.barrier()
+    if mayavi_loaded:
+        vmec = Vmec(vmec_input_plot, verbose=False)
+        pprint('  Running VMEC')
+        vmec.run()
+    if mpi.proc0_world and mayavi_loaded:
+        particle = ChargedParticle(r_initial=inputs.minor_radius_array[0]/2, theta_initial=inputs.theta_initial, phi_initial=inputs.varphi_initial, Lambda=inputs.Lambda)
+        fig = mlab.figure(bgcolor=(1,1,1), size=(1100,800))
+        pprint('  Running near-axis orbit')
+        orbit_nearaxis = ParticleOrbit(particle, field_nearaxis, nsamples=inputs.nsamples, tfinal=inputs.tfinal, constant_b20=inputs.constant_b20)
+        orbit_rpos_cartesian = orbit_nearaxis.rpos_cartesian
+        mlab.plot3d(orbit_rpos_cartesian[0], orbit_rpos_cartesian[1], orbit_rpos_cartesian[2], tube_radius=0.025, color=(0.6, 0.1, 0.1))
+        pprint('  Readjusting particle position')
+        particle.r_initial = ((inputs.minor_radius_array[0]/2)**2)/(minor_radius_plot**2) # keep initializing the particle at the same location as the near-axis one
+        particle.phi_initial = RZPhi_initial[2]
+        particle.theta_initial = np.pi-inputs.theta_initial
+        pprint('  Running gyronimo orbit')
+        vmec_NEAT = Vmec_NEAT(wout_filename=vmec.output_file, maximum_s=inputs.maximum_s_particle)
+        orbit_gyronimo = ParticleOrbit(particle, vmec_NEAT, nsamples=inputs.nsamples, tfinal=inputs.tfinal)
+        orbit_rpos_cartesian = orbit_gyronimo.rpos_cartesian
+        mlab.plot3d(orbit_rpos_cartesian[0], orbit_rpos_cartesian[1], orbit_rpos_cartesian[2], tube_radius=0.025, color=(0.1, 0.6, 0.1))
+        pprint('  Running SIMPLE orbit')
+        particle.theta_initial = inputs.theta_initial
+        field_simple = Simple(wout_filename=vmec.output_file, B_scale=1, Aminor_scale=1, multharm=3,ns_s=3,ns_tp=3)
+        orbit_simple = ParticleOrbit(particle, field_simple, nsamples=inputs.nsamples, tfinal=inputs.tfinal)
+        orbit_rpos_cartesian = orbit_simple.rpos_cartesian
+        mlab.plot3d(orbit_rpos_cartesian[0], orbit_rpos_cartesian[1], orbit_rpos_cartesian[2], tube_radius=0.025, color=(0.1, 0.1, 0.6))
+        pprint('  Plotting surfaces')
+        opacity_array = np.sqrt(np.linspace(0.8,1.0,inputs.surfaces_plot_qsc_vmec))[::-1]
+        minor_radius_plot_array = np.linspace(min_surface_radius,inputs.minor_radius_array[0],inputs.surfaces_plot_qsc_vmec,endpoint=True)
+        for i, minor_radius_plot in enumerate(minor_radius_plot_array):
+            nphi_plot = 80
+            ntheta_plot = 30
+            if i==0: phimin=0
+            else: phimin=np.pi/2
+            phimax=2*np.pi
+            x_2D_plot, y_2D_plot, z_2D_plot, R_2D_plot = field_nearaxis.get_boundary(r=minor_radius_plot, ntheta=ntheta_plot, nphi=nphi_plot, ntheta_fourier=14, mpol=7, ntor=7, phimin=phimin, phimax=phimax)
+            theta1D = np.linspace(0, 2 * np.pi, ntheta_plot)
+            phi1D = np.linspace(0, 2 * np.pi, nphi_plot)
+            phi2D, theta2D = np.meshgrid(phi1D, theta1D)
+            Bmag = field_nearaxis.B_mag(r=minor_radius_plot, theta=theta2D, phi=phi2D)
+            Out=mlab.mesh(x_2D_plot, y_2D_plot, z_2D_plot, scalars=Bmag, colormap='blue-red', opacity=opacity_array[i])
+            Out.actor.property.lighting = False
+            # Out.scene.renderer.use_depth_peeling = True
+            # Out.scene.renderer.maximum_number_of_peels = 8
+            mlab.view(azimuth=30, elevation=70, focalpoint=(-0.15,0,0), figure=fig)
+        cb = mlab.colorbar(orientation='vertical', title='|B| [T]', nb_labels=7)
+        cb.scalar_bar.unconstrained_font_size = True
+        cb.label_text_property.font_family = 'times'
+        cb.label_text_property.bold = 0
+        cb.label_text_property.font_size=20
+        cb.label_text_property.color=(0,0,0)
+        cb.title_text_property.font_family = 'times'
+        cb.title_text_property.font_size=24
+        cb.title_text_property.color=(0,0,0)
+        cb.title_text_property.bold = 1
+        mlab.savefig(filename=os.path.join(OUT_DIR,'3D_stells.png'), figure=fig)
+        # mlab.show()
 #############################################
 # Compare geometries
 #############################################
@@ -132,13 +142,15 @@ Z_VMEC_z_nearaxis_relerror_array = []
 iota_relerror_array = []
 aspect_ratio_array = []
 iota_array = []
-fig, axs = plt.subplots(numRows, numCols)
-axs = axs.ravel()
+mpi.comm_world.barrier()
+if mpi.proc0_world:
+    fig, axs = plt.subplots(numRows, numCols, sharex=True, sharey=True)
+    axs = axs.ravel()
 for i, minor_radius in enumerate(inputs.minor_radius_array):
     pprint(f"Running minor_radius = {minor_radius:.3f}")
-    vmec_input = os.path.join(OUT_DIR, f'input.na_A{minor_radius:.1}')
+    vmec_input = os.path.join(OUT_DIR, f'input.na_A{minor_radius:.2f}')
     start_time = time.time()
-    if mpi.proc0_world: field_nearaxis.to_vmec(filename=vmec_input,r=minor_radius, params={"ntor":7, "mpol":7, "ns_array":inputs.ns_array,"niter_array":[5000,5000,7000],"ftol_array":inputs.ftol_array}, ntheta=14, ntorMax=7)
+    if mpi.proc0_world: field_nearaxis.to_vmec(filename=vmec_input,r=minor_radius, params={"ntor":7, "mpol":7, "ns_array":inputs.ns_array,"niter_array":[1000,3000,7000],"ftol_array":inputs.ftol_array}, ntheta=14, ntorMax=7)
     pprint(f"  Creating VMEC input took {(time.time() - start_time):.2f}s")
     vmec = Vmec(vmec_input, verbose=False)
     start_time = time.time()
@@ -205,11 +217,11 @@ for i, minor_radius in enumerate(inputs.minor_radius_array):
     pprint(f'  Rel error Raxis and R0axis is {raxis_r0axis_relerror:.2}')
     pprint(f'  Rel error Zaxis and Z0axis is {zaxis_z0axis_relerror:.2}')
 
-    # iota_relerror = np.abs((np.abs(iota)-np.abs(iota0))/iota)
-    # iota_relerror_array.append(iota_relerror)
-    # pprint(f'  iota is {iota:.2}')
-    # pprint(f'  iota0 is {iota0:.2}')
-    # pprint(f'  Rel error iota and iota is {iota_relerror:.2}')
+    iota_relerror = np.abs((np.abs(iota)-np.abs(iota0))/iota)
+    iota_relerror_array.append(iota_relerror)
+    pprint(f'  iota is {iota:.2}')
+    pprint(f'  iota0 is {iota0:.2}')
+    pprint(f'  Rel error iota and iota is {iota_relerror:.2}')
 
     if mpi.proc0_world:
         # plt.subplot(numRows,numCols,plotNum)
@@ -242,7 +254,7 @@ if mpi.proc0_world:
     plt.plot(aspect_ratio_array, zaxis_z0axis_relerror_array, label=r'$(Zaxis_{VMEC}-Zaxis_{near-axis})/Zaxis_{VMEC}$')
     plt.plot(aspect_ratio_array, R_VMEC_r_nearaxis_relerror_array, label=r'$(R_{VMEC} - R_{near-axis})/R_{VMEC}$')
     plt.plot(aspect_ratio_array, Z_VMEC_z_nearaxis_relerror_array, label=r'$(Z_{VMEC} - Z_{near-axis})/Z_{VMEC}$')
-    # plt.plot(aspect_ratio_array, iota_relerror_array, label=r'$(\iota_{VMEC}-\iota_{near-axis})/\iota_{VMEC}$')
+    plt.plot(aspect_ratio_array, iota_relerror_array, label=r'$(\iota_{VMEC}-\iota_{near-axis})/\iota_{VMEC}$')
     plt.yscale('log')
     plt.xscale('log')
     plt.xlabel('Aspect Ratio of the Plasma Boundary')

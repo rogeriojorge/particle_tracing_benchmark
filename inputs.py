@@ -1,19 +1,20 @@
 import numpy as np
 # Number of aspect ratio to choose
-n_minor_radius = 3 # number of minor radii for scan
-r_min = 0.9 # minimum minor radius to use in meters (maximum radius usually 1.7044/1.3=1.31)
+n_minor_radius = 4 # number of minor radii for scan
+r_min = 0.08 # minimum minor radius to use in meters (maximum radius usually 1.7044/1.3=1.31)
 rminor_factor=1.4 # ratio between max minor radius to use and ARIES_CS minor radius
 maximum_s_particle = 0.95 # maximum s value to integrate in gyronimo using vmectrace
 ns_array = [16,51,0]
 ftol_array = [1e-12,1e-14,1e-15]
+surfaces_plot_qsc_vmec = 3
 # Particle and Integration Properties
-r_initial = 0.8  # meters
+r_initial = 0.05  # meters
 theta_initial = 0.001  # initial Boozer poloidal angle
 varphi_initial = 0.001  # initial cylindrical toroidal angle
 Lambda = 0.2  # = mu * B0 / energy
 nsamples = 1000  # resolution in time
 tfinal = 1e-5  # seconds
-charge = 2 # in units of the proton mass
+charge = 1e3 # in units of the proton mass
 # Size of equilibrium
 Rmajor_ARIES = 7.7495
 Aminor_ARIES=1.7044

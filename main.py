@@ -29,7 +29,7 @@ mpi.comm_world.bcast(particle_phi_initial, root=0)
 pprint("Starting patricle_tracing benchmark")
 # Initialize folders and variables
 particle = ChargedParticle(r_initial=inputs.r_initial, theta_initial=inputs.theta_initial, phi_initial=inputs.varphi_initial, Lambda=inputs.Lambda, charge=inputs.charge)
-OUT_DIR=os.path.join(Path(__file__).parent.resolve(),f'out_constantb20{inputs.constant_b20}_r{inputs.r_initial:.2f}_theta{inputs.theta_initial:.2f}_phi{inputs.varphi_initial:.2f}_lambda{inputs.Lambda:.2f}')
+OUT_DIR=os.path.join(Path(__file__).parent.resolve(),f'out_constantb20{inputs.constant_b20}_r{inputs.r_initial:.2f}_theta{inputs.theta_initial:.2f}_phi{inputs.varphi_initial:.2f}_lambda{inputs.Lambda:.2f}_nsVMEC{np.max(inputs.ns_array)}')
 os.makedirs(OUT_DIR, exist_ok=True)
 if mpi.proc0_world: shutil.copyfile(os.path.join(Path(__file__).parent.resolve(),'inputs.py'), os.path.join(OUT_DIR,'copy_inputs.py'))
 os.chdir(OUT_DIR)
@@ -40,6 +40,11 @@ if mpi.proc0_world:
     orbit_nearaxis = ParticleOrbit(particle, field_nearaxis, nsamples=inputs.nsamples, tfinal=inputs.tfinal, constant_b20=inputs.constant_b20)
     orbit_nearaxis_solution = orbit_nearaxis.solution
     orbit_nearaxis_rpos_cylindrical = orbit_nearaxis.rpos_cylindrical
+    orbit_nearaxis.plot_orbit_contourB(show=False, savefig=os.path.join(OUT_DIR,f'plot_orbit_contourB_nearaxis.pdf'))
+    orbit_nearaxis.plot(show=False, savefig=os.path.join(OUT_DIR,f'plot_nearaxis.pdf'))
+    orbit_nearaxis.plot_orbit(show=False, savefig=os.path.join(OUT_DIR,f'plot_orbit_nearaxis.pdf'))
+    orbit_nearaxis.plot_orbit_3d(show=False, savefig=os.path.join(OUT_DIR,f'plot_orbit_3d_nearaxis.pdf'))
+    plt.close()
 mpi.comm_world.Bcast(orbit_nearaxis_solution, root=0);mpi.comm_world.Bcast(orbit_nearaxis_rpos_cylindrical, root=0)
 pprint(f"Particle tracer gyronimo for near-axis (stellna) took {(time.time() - start_time):.2f}s")
 orbit_gyronimo_solution_array=np.empty((inputs.n_minor_radius,inputs.nsamples+1,15));orbit_gyronimo_rpos_cylindrical_array=np.empty((inputs.n_minor_radius,3,inputs.nsamples+1))
@@ -70,7 +75,7 @@ for i, minor_radius in enumerate(inputs.minor_radius_array):
     particle.r_initial = (inputs.r_initial**2)/(minor_radius**2) # keep initializing the particle at the same location as the near-axis one
     particle.phi_initial = particle_phi_initial
     particle.theta_initial = np.pi-inputs.theta_initial
-    # particle.vpp_sign = -1
+    particle.vpp_sign = 1
     if mpi.proc0_world:
         orbit_gyronimo = ParticleOrbit(particle, vmec_NEAT, nsamples=inputs.nsamples, tfinal=inputs.tfinal, add_zeros=True)
         orbit_gyronimo_solution = orbit_gyronimo.solution
@@ -85,8 +90,9 @@ for i, minor_radius in enumerate(inputs.minor_radius_array):
     orbit_gyronimo_rpos_cylindrical_array[i]=orbit_gyronimo_rpos_cylindrical
     pprint(f"  Particle tracer gyronimo for minor_radius = {minor_radius:.2f} took {(time.time() - start_time):.2f}s")
     field_simple = Simple(wout_filename=vmec.output_file, B_scale=1, Aminor_scale=1, multharm=3,ns_s=3,ns_tp=3)
+    particle.theta_initial = inputs.theta_initial
     start_time = time.time()
-    # particle.vpp_sign = 1
+    particle.vpp_sign = -1
     if mpi.proc0_world:
         orbit_simple = ParticleOrbit(particle, field_simple, nsamples=inputs.nsamples, tfinal=inputs.tfinal, add_zeros=True)
         orbit_simple_solution = orbit_simple.solution
