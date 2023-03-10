@@ -45,9 +45,9 @@ if mpi.proc0_world:
     field_nearaxis = StellnaQS(rc=field_nearaxis_basis.rc*inputs.Rmajor_ARIES, zs=field_nearaxis_basis.zs*inputs.Rmajor_ARIES, etabar=field_nearaxis_basis.etabar/inputs.Rmajor_ARIES, B2c=field_nearaxis_basis.B2c*(inputs.b0_ARIES/inputs.Rmajor_ARIES/inputs.Rmajor_ARIES),\
                                 B0=inputs.b0_ARIES, nfp=field_nearaxis_basis.nfp, order='r3', nphi=111)
     print(field_nearaxis.rc)
-    # field_desc = Equilibrium.from_near_axis(field_nearaxis, r= inputs.Aminor_ARIES, L=8, M=8, N=8)
-    # constraints = get_fixed_boundary_constraints(iota=False)
-    # field_desc.solve(verbose=3, ftol=1e-2,objective="force",maxiter=100,xtol=1e-6,constraints=constraints)
+    field_desc = Equilibrium.from_near_axis(field_nearaxis, r= inputs.Aminor_ARIES, L=8, M=8, N=8)
+    constraints = get_fixed_boundary_constraints(iota=False)
+    field_desc.solve(verbose=3, ftol=1e-2,objective="force",maxiter=100,xtol=1e-6,constraints=constraints)
     nu_of_varphi = spline(np.append(field_nearaxis.varphi,2*np.pi/inputs.nfp), np.append(field_nearaxis.varphi-field_nearaxis.phi,0), bc_type='periodic')
     phi0 = inputs.varphi_initial-nu_of_varphi(inputs.varphi_initial)
     RZPhi_initial = np.ravel(field_nearaxis.to_RZ([[inputs.r_initial,inputs.theta_initial,phi0]]))
@@ -64,7 +64,7 @@ pprint("Starting qsc desc benchmark")
 #############################################
 # Initialize folders and variables
 #############################################
-OUT_DIR=os.path.join(Path(__file__).parent.resolve(),f'comparison_qsc_desc_r_min{inputs.r_min:.2f}r_ARIES{inputs.r_ARIES:.2f}_nsVMEC{np.max(inputs.ns_array)}')
+OUT_DIR=os.path.join(Path(__file__).parent.resolve(),f'comparison_qsc_desc_r_min{inputs.r_min:.2f}r_ARIES{inputs.r_ARIES:.2f}_nsDESC{np.max(inputs.ns_array)}')
 os.makedirs(OUT_DIR, exist_ok=True)
 if mpi.proc0_world: shutil.copyfile(os.path.join(Path(__file__).parent.resolve(),'inputs.py'), os.path.join(OUT_DIR,'copy_inputs.py'))
 os.chdir(OUT_DIR)
@@ -158,13 +158,13 @@ for i, minor_radius in enumerate(inputs.minor_radius_array):
     vmec_input = os.path.join(OUT_DIR, f'input.na_A{minor_radius:.2f}')
     vmec_output=os.path.join(OUT_DIR, f'wout_na_A{minor_radius:.2f}.nc')
     start_time = time.time()
-    if mpi.proc0_world: #to_vmec was here
-        # field_desc = Equilibrium.from_near_axis(field_nearaxis, r=minor_radius , L=8, M=8, N=8)
-        # constraints = get_fixed_boundary_constraints(iota=False)
-        # field_desc.solve(verbose=3, ftol=1e-2,objective="force",maxiter=100,xtol=1e-6,constraints=constraints)
+    if mpi.proc0_world:
+        field_desc = Equilibrium.from_near_axis(field_nearaxis, r=minor_radius , L=8, M=8, N=8)
+        constraints = get_fixed_boundary_constraints(iota=False)
+        field_desc.solve(verbose=3, ftol=1e-2,objective="force",maxiter=100,xtol=1e-6,constraints=constraints)
         pprint(f"  Creating DESC input took {(time.time() - start_time):.2f}s")
         pprint("Saving DESC equilibrium in VMEC style output file")
-        # VMECIO.save(field_desc, vmec_output)
+        VMECIO.save(field_desc, vmec_output)
         vmec_NEAT = Vmec_NEAT(wout_filename=vmec_output, maximum_s=inputs.maximum_s_particle)
         pprint("Loading VMEC style file")
         vmec = Vmec(vmec_output, verbose=False)
@@ -187,7 +187,7 @@ for i, minor_radius in enumerate(inputs.minor_radius_array):
         Raxis = 0
         Zaxis = 0
         for n in range(vmec.wout.ntor+1):
-            angle = -n*inputs.nfp*phi0
+            angle = n*inputs.nfp*phi0
             Raxis += vmec.wout.raxis_cc[n]*np.cos(angle)
             Zaxis += vmec.wout.zaxis_cs[n]*np.sin(angle)
 
@@ -202,7 +202,7 @@ for i, minor_radius in enumerate(inputs.minor_radius_array):
     R_VMEC_initial_array = np.zeros((ntheta,))
     Z_VMEC_initial_array = np.zeros((ntheta,))
     for imode in range(len(vmec.wout.xn)):
-        angle = vmec.wout.xm[imode]*(-inputs.theta_initial) - vmec.wout.xn[imode]*RZPhi_initial[2]
+        angle = vmec.wout.xm[imode]*(- inputs.theta_initial) - vmec.wout.xn[imode]*RZPhi_initial[2]
         R_VMEC_initial += vmec.wout.rmnc[imode,iradus_initial]*np.cos(angle)
         Z_VMEC_initial += vmec.wout.zmns[imode,iradus_initial]*np.sin(angle)
     for imode in range(len(vmec.wout.xn)):
@@ -242,9 +242,9 @@ for i, minor_radius in enumerate(inputs.minor_radius_array):
         for iradius in range(nradius):
             axs[i].plot(R[:,iradius], Z[:,iradius], '-', label = '_nolegend_')
         axs[i].plot(R_VMEC_initial_array, Z_VMEC_initial_array, '-', label='Initial flux surface')
-        axs[i].plot([Raxis],[Zaxis],'.b', label='VMEC axis')
+        axs[i].plot([Raxis],[Zaxis],'.b', label='DESC axis')
         axs[i].plot([R0axis],[Z0axis],'*g', label='Near-Axis (true) axis')
-        axs[i].plot([R_VMEC_initial],[Z_VMEC_initial],'xr',label='VMEC Initial Position')
+        axs[i].plot([R_VMEC_initial],[Z_VMEC_initial],'xr',label='DESC Initial Position')
         axs[i].plot([RZPhi_initial[0]],[RZPhi_initial[1]],'ok',label='Near-Axis (true) Initial Position')
         # axs[i].plot([R_VMEC_theta0],[Z_VMEC_theta0],'Xb')
         axs[i].set_xlabel('R', fontsize=10)
@@ -257,24 +257,24 @@ if mpi.proc0_world:
     fig.legend(handles, labels, loc='lower right', fontsize=8)
     plt.gca().set_aspect('equal',adjustable='box')
     plt.tight_layout()
-    plt.savefig('qsc_vmec_location.pdf')
+    plt.savefig('qsc_desc_location.pdf')
     # plt.show()
 
 if mpi.proc0_world:
     fig, ax = plt.subplots()
     # plt.subplot(numRows,numCols,plotNum)
-    plt.plot(aspect_ratio_array, raxis_r0axis_relerror_array, label=r'$(Raxis_{VMEC}-Raxis_{near-axis})/Raxis_{VMEC}$')
-    plt.plot(aspect_ratio_array, zaxis_z0axis_relerror_array, label=r'$(Zaxis_{VMEC}-Zaxis_{near-axis})/Zaxis_{VMEC}$')
-    plt.plot(aspect_ratio_array, R_VMEC_r_nearaxis_relerror_array, label=r'$(R_{VMEC} - R_{near-axis})/R_{VMEC}$')
-    plt.plot(aspect_ratio_array, Z_VMEC_z_nearaxis_relerror_array, label=r'$(Z_{VMEC} - Z_{near-axis})/Z_{VMEC}$')
-    plt.plot(aspect_ratio_array, iota_relerror_array, label=r'$(\iota_{VMEC}-\iota_{near-axis})/\iota_{VMEC}$')
+    plt.plot(aspect_ratio_array, raxis_r0axis_relerror_array, label=r'$(Raxis_{DESC}-Raxis_{near-axis})/Raxis_{DESC}$')
+    plt.plot(aspect_ratio_array, zaxis_z0axis_relerror_array, label=r'$(Zaxis_{DESC}-Zaxis_{near-axis})/Zaxis_{DESC}$')
+    plt.plot(aspect_ratio_array, R_VMEC_r_nearaxis_relerror_array, label=r'$(R_{DESC} - R_{near-axis})/R_{DESC}$')
+    plt.plot(aspect_ratio_array, Z_VMEC_z_nearaxis_relerror_array, label=r'$(Z_{DESC} - Z_{near-axis})/Z_{DESC}$')
+    plt.plot(aspect_ratio_array, iota_relerror_array, label=r'$(\iota_{DESC}-\iota_{near-axis})/\iota_{DESC}$')
     plt.yscale('log')
     plt.xscale('log')
     plt.xlabel('Aspect Ratio of the Plasma Boundary')
     plt.ylabel('Relative Error in Location')
     plt.legend()
     plt.tight_layout()
-    plt.savefig('qsc_vmec_relerrors.pdf')
+    plt.savefig('qsc_desc_relerrors.pdf')
     # plt.show()
 
     # for objective_file in glob.glob(os.path.join(OUT_DIR,f"input.*")): os.remove(objective_file)
